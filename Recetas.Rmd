@@ -1,0 +1,26 @@
+---
+title: "Graficas"
+author: "Haydeé"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Cargamos la base de datos para explorarla.
+
+```{r}
+library(readr)
+ingredientes <- read_csv("data/srep00196-s3.csv")
+head(ingredientes)
+```
+
+```{r}
+library(plyr)
+library(dplyr)
+
+
+
+```
