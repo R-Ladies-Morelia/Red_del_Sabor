@@ -1,26 +1,279 @@
 ---
-title: "Graficas"
-author: "Haydeé"
+title: "Red del Sabor"
+author: "Haydeé Peruyero"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, eval.after = "fig.cap")
+```
+
+# Datos de la recetas
+
+Basado en: https://github.com/lingcheng99/Flavor-Network
+Reference: Flavor network and the principles of food pairing. Y.-Y. Ahn, S. Ahnert, J. P. Bagrow, and A.-L. Barabási . Scientific Reports 1, 196 (2011).
+
+Cargamos librerías.
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(tidyverse)
+library(plyr)
+library(dplyr)
+library(ggplot2)
 ```
 
 Cargamos la base de datos para explorarla.
 
 ```{r}
 library(readr)
-ingredientes <- read_csv("data/srep00196-s3.csv")
-head(ingredientes)
+ingredients <- read_csv("data/srep00196-s3.csv")
+head(ingredients)
+
+ingredients <- as.data.frame(ingredients)
+```
+
+Guardamos las recetas por regiones para uso posterior.
+
+```{r}
+df_regions <- ingredients %>%
+  nest(data = !Region)
+```
+
+Obtenemos las regiones.
+```{r}
+regions <- ingredients %>% 
+  distinct(Region)
+
+regions
+```
+
+Contamos cuantos elementos faltantes hay por cada receta y agregamos una columna a nuestra base de datos con la cantidad de ingredientes por receta.
+
+```{r}
+missing_all <- apply(X=is.na(ingredients) , MARGIN = 1, FUN = sum) 
+
+ingredients <- ingredients %>%
+  mutate(Num_of_Ing = 23 - missing_all)
+
+head(ingredients)
+```
+
+# Gráficos por número de ingredientes por regiones
+
+Seleccionamos solo las columnas de región y número de ingredientes para comparar la cantidad de ingredientes usados por receta y regiones.
+
+```{r}
+df <- ingredients %>% 
+  select(Region, Num_of_Ing)
+```
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(12,8), fig.align = "center", message=FALSE}
+p1 <- ggplot(df, aes(x=Num_of_Ing, fill= Region)) + 
+  geom_histogram() +
+  xlab("Number of ingredients") +
+  ylab("Number of recipes") +
+  ggtitle("Recipes by regions")
+
+p1
+```
+
+Agregamos la escala libre para cada región.
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(12,12), fig.align = "center", message=FALSE}
+p2 <- ggplot(df, aes(x=Num_of_Ing, fill = Region)) + 
+  geom_histogram() +
+  facet_wrap(~Region, scales = "free") +
+  xlab("Number of ingredients") +
+  ylab("Number of recipes") +
+  ggtitle("Recipes by regions")
+
+p2
+```
+
+Filtramos por solo una región.
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(12,8), fig.align = "center", message=FALSE}
+LatinA <- ingredients %>%
+  filter(Region == "LatinAmerican")
+
+
+p3 <- ggplot(LatinA, aes(x=Num_of_Ing)) + 
+  geom_histogram(fill="pink") +
+  xlab("Number of ingredients") +
+  ylab("Number of recipes") +
+  ggtitle("Recipes in Latin America")
+
+p3
+```
+
+# Ingredientes únicos 
+
+
+Obtenemos una lista con los ingredientes únicos en toda la base de datos y eliminamos el NA.
+
+```{r message=FALSE, warning=FALSE}
+unique_ing <- as.character(unique(unlist(ingredients[,2:24])))
+is.na(unique_ing)
+unique_ing <- unique_ing[-295]
+is.na(unique_ing)
+```
+
+Usamos la siguiente función para crear un dataframe por región con la cantidad de veces que se usa un ingrediente en todas las recetas.
+
+```{r}
+ing_by_reg <- function(x){
+  name <- df_regions$Region[x]
+  i=1
+  counts <- list()
+  for (j in unique_ing) {
+    counts[i] <- sum(str_count(df_regions$data[x], j))
+    i = i + 1
+  }
+  
+  count_ing <- unlist(counts)
+  df_x <- data.frame(rep(name, length(unique_ing)), unique_ing, count_ing)
+  df_p <- df_x %>%
+  return(df_x)
+}
+```
+
+
+Aplicamos la función a las regiones.
+
+```{r message=FALSE, warning=FALSE}
+ing_African <- ing_by_reg(1)
+ing_EastAsian <- ing_by_reg(2)
+ing_EasternEuropean <- ing_by_reg(3)
+ing_LatinAmerican <- ing_by_reg(4)
+ing_MiddleEastern <- ing_by_reg(5)
+ing_NorthernEuropean <- ing_by_reg(7)
+ing_SouthAsian <- ing_by_reg(8)
+ing_SoutheastAsian <- ing_by_reg(9)
+ing_westernEuropean <- ing_by_reg(11)
+ing_SouthernEuropean <- ing_by_reg(10)
+# Como NorthAmerican tiene más de 4000 recetas esto consume mucho tiempo.
+#ing_NorthAmerican <- ing_by_reg(6)
+```
+
+Unimos estos dataframe en uno solo.
+
+```{r}
+counts_ingd <- rbind.data.frame(ing_African, ing_EastAsian, ing_EasternEuropean, 
+                                ing_LatinAmerican, ing_MiddleEastern, ing_NorthernEuropean,
+                                ing_SouthAsian, ing_SoutheastAsian, ing_westernEuropean,
+                                ing_SouthernEuropean)
+names(counts_ingd) <- c("Region", "Ingredients", "Quantity")
+
+head(counts_ingd)
+```
+
+Graficamos los ingredientes más usados por regiones.
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(14,14), fig.align = "center", message=FALSE}
+p4 <- counts_ingd %>%
+  group_by(Region) %>%
+  top_n(n = 10, Quantity) %>%
+  ggplot(., aes(x=Ingredients, y= Quantity, fill= Region)) + 
+    geom_histogram(stat="identity") +
+    theme(axis.text.x = element_blank())+
+    facet_wrap(~Region, scales="free")+
+    geom_text(aes(label=Ingredients, angle=-90, hjust=0, vjust=0))
+  
+p4
+```
+
+Otro estilo de gráfico.
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(14,14), fig.align = "center", message=FALSE}
+p5 <- counts_ingd %>%
+  group_by(Region) %>%
+  top_n(n = 10, Quantity) %>% 
+  ggplot(., aes(x= Ingredients, y=Quantity, fill=Region))+
+    geom_point(aes(color=Ingredients, size=Quantity)) +
+    theme(axis.text.x = element_blank())+
+    facet_wrap(~Region)
+
+
+p5
+```
+
+Graficamos todos los ingredientes.
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(14,14), fig.align = "center", message=FALSE}
+p6 <- ggplot(counts_ingd, aes(x= Ingredients, y=Quantity, fill=Region))+
+  geom_point(aes(color=Ingredients, size=Quantity)) +
+  theme(axis.text.x = element_blank(), legend.position = "none") +
+  facet_wrap(~Region)
+
+
+p6
+```
+
+# Porcentajes
+
+Agregamos encabezados a nuestros dataframe por regiones.
+
+```{r}
+names(ing_African) <- c("Region", "Ingredient", "Quantity")
+names(ing_EastAsian) <- c("Region", "Ingredient", "Quantity")
+names(ing_EasternEuropean) <- c("Region", "Ingredient", "Quantity")
+names(ing_LatinAmerican) <- c("Region", "Ingredient", "Quantity")
+names(ing_MiddleEastern) <- c("Region", "Ingredient", "Quantity")
+names(ing_NorthernEuropean) <- c("Region", "Ingredient", "Quantity")
+names(ing_SouthAsian) <- c("Region", "Ingredient", "Quantity")
+names(ing_SoutheastAsian) <- c("Region", "Ingredient", "Quantity")
+names(ing_westernEuropean) <- c("Region", "Ingredient", "Quantity")
+names(ing_SouthernEuropean) <- c("Region", "Ingredient", "Quantity")
+```
+
+Calculamos los porcentajes de cada ingrediente por región.
+
+```{r}
+counts_ingd_rel <- counts_ingd %>%
+  group_by(Region) %>%
+  dplyr::mutate(Total = sum(Quantity), Percentage = (Quantity/Total)*100 )
+
+head(counts_ingd_rel)
 ```
 
 ```{r}
-library(plyr)
-library(dplyr)
+top_N <- counts_ingd_rel %>%
+  group_by(Region) %>%
+  top_n(n = 10, Percentage)
+```
 
 
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(14,14), fig.align = "center", message=FALSE}
+p7 <- counts_ingd_rel %>%
+  group_by(Region) %>%
+  top_n(n = 10, Percentage) %>%
+  ggplot(., aes(x=Ingredients, y= Percentage, fill= Region)) + 
+  geom_histogram(stat="identity") +
+  theme(axis.text.x = element_blank())+
+  facet_wrap(~Region, scales="free")+
+  geom_text(aes(label=Ingredients, angle=-90, hjust=0, vjust=0))
 
+p7
+```
+
+
+```{r include = TRUE, echo = TRUE, fig.pos = 'H', fig.dim = c(14,14), fig.align = "center", message=FALSE}
+p8 <- counts_ingd_rel %>%
+  group_by(Region) %>%
+  top_n(n = 10, Percentage) %>%
+  ggplot(., aes(x=Region, y= Percentage, fill= Ingredients)) + 
+  geom_col()
+  
+p8
+```
+
+# A futuro: Matriz con combinaciones de ingredientes
+
+Ordenamos alfabéticamente nuestros ingredientes y creamos una matriz de combinaciones de ingredientes para encontrar cuales combinaciones son más usadas por regiones.
+
+```{r}
+ing_alph <- sort(unique_ing)
 ```
